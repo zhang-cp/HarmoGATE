@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.stats import pearsonr
-from sklearn.metrics import average_precision_score, f1_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
+from sklearn.metrics import accuracy_score, average_precision_score, f1_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 
 
 PREDICTION_STEMS = ("y_true_dti", "y_pred_dti", "y_true_dta", "y_pred_dta")
@@ -59,7 +59,9 @@ def concordance_index(y_true, y_pred):
     predicted_left = y_pred.reshape(-1, 1)
     predicted_right = y_pred.reshape(1, -1)
     total = comparable.sum()
-    return float(((predicted_left < predicted_right) & comparable).sum() / total) if total else 0.5
+    concordant = ((predicted_left < predicted_right) & comparable).sum()
+    tied = ((predicted_left == predicted_right) & comparable).sum()
+    return float((concordant + 0.5 * tied) / total) if total else 0.5
 
 
 def main():
@@ -74,17 +76,18 @@ def main():
     yp_dti = np.load(files["y_pred_dti"])
     yt_dta = np.load(files["y_true_dta"])
     yp_dta = np.load(files["y_pred_dta"])
-    predicted_class = (yp_dti > args.classification_threshold).astype(int)
+    predicted_class = (yp_dti >= args.classification_threshold).astype(int)
     mse = mean_squared_error(yt_dta, yp_dta)
     metrics = {
         "AUC": roc_auc_score(yt_dti, yp_dti),
         "AUPR": average_precision_score(yt_dti, yp_dti),
         "F1": f1_score(yt_dti, predicted_class, zero_division=0),
+        "Accuracy": accuracy_score(yt_dti, predicted_class),
         "RMSE": np.sqrt(mse),
         "MAE": mean_absolute_error(yt_dta, yp_dta),
         "R2": r2_score(yt_dta, yp_dta),
         "CI": concordance_index(yt_dta, yp_dta),
-        "Pearson": pearsonr(yt_dta, yp_dta)[0],
+        "PCC": pearsonr(yt_dta, yp_dta)[0],
     }
     for name, value in metrics.items():
         print(f"{name}: {value:.6f}")
